@@ -5,6 +5,8 @@ import cors from 'cors';
 import path from 'path';
 import express from 'express';
 import 'express-async-errors';
+import socketio from 'socket.io';
+import http from 'http';
 
 import routes from './routes';
 
@@ -15,8 +17,11 @@ import './database';
 class App {
   constructor() {
     this.server = express();
+    this.app = http.Server(this.server);
+    this.io = socketio(this.app);
 
     this.middlewares();
+    this.webSocket();
     this.routes();
     this.exceptionHandler();
   }
@@ -28,6 +33,21 @@ class App {
       '/files',
       express.static(path.resolve(__dirname, '..', 'uploads'))
     );
+  }
+
+  webSocket() {
+    this.connectedUsers = {};
+    this.io.on('connection', socket => {
+      const { user_id } = socket.handshake.query;
+
+      this.connectedUsers[user_id] = socket.id;
+    });
+    this.server.use((req, res, next) => {
+      req.io = this.io;
+      req.connectedUsers = this.connectedUsers;
+
+      return next();
+    });
   }
 
   routes() {
@@ -47,4 +67,4 @@ class App {
   }
 }
 
-export default new App().server;
+export default new App().app;
